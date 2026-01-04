@@ -639,13 +639,13 @@ async def cmd_start(msg: Message, state: FSMContext):
     )
 
 @dp.message(Command("excel"))
-async def cmd_excel(message):
+async def cmd_excel(message: Message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("⛔ فقط ادمین اجازه دارد.")
 
-    rows = await fetch_users()
-    await send_excel_to_admin(message.bot, rows, filename="users.xlsx")
-    await message.answer("✅ فایل اکسل ارسال شد.")
+    await send_orders_excel_report_to_admin(message.bot)
+    await message.answer("✅ گزارش سفارش‌ها ارسال شد.")
+
 
 
 @dp.callback_query(F.data == "check_join")
@@ -674,20 +674,9 @@ async def excel_button(msg: Message):
     if not is_admin(msg.from_user.id):
         return await safe_answer(msg, "⛔ فقط ادمین اجازه دارد.", reply_markup=main_menu_kb_for(msg.from_user.id))
 
-    if not DATABASE_URL:
-        return await safe_answer(msg, "❌ DATABASE_URL تنظیم نشده.", reply_markup=main_menu_kb_for(msg.from_user.id))
+    await send_orders_excel_report_to_admin(msg.bot)
+    await safe_answer(msg, "✅ گزارش سفارش‌ها ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
 
-    try:
-        rows = await fetch_users()
-        await send_excel_to_admin(msg.bot, rows, filename="users.xlsx")
-        await safe_answer(msg, "✅ فایل اکسل ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
-    except Exception as e:
-        await safe_answer(
-            msg,
-            f"❌ خطا در گزارش اکسل:\n{e}",
-            parse_mode=None,
-            reply_markup=main_menu_kb_for(msg.from_user.id)
-        )
 
 @dp.message(F.text == "💎 پلن و قیمت")
 async def plans(msg: Message):
@@ -1465,3 +1454,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
