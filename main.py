@@ -1,3 +1,11 @@
+import io
+import os
+import pandas as pd
+import asyncpg
+
+from aiogram.filters import Command
+from aiogram.types import BufferedInputFile
+
 import os
 import re
 import asyncio
@@ -27,11 +35,34 @@ from aiogram.fsm.context import FSMContext
 # -------------------- ENV --------------------
 load_dotenv()
 
-BOT_TOKEN = os.getenv("BOT_TOKEN", "").strip()
-ADMIN_ID = int(os.getenv("ADMIN_ID", "0").strip() or "0")
+ADMIN_ID = int(os.getenv("ADMIN_ID", "0"))
+DATABASE_URL = os.getenv("postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@switchyard.proxy.rlwy.net:23439/railwayL", "")
 
-CHANNEL_ID = os.getenv("CHANNEL_ID", "").strip()          # مثل: -1001234567890
-CHANNEL_LINK = os.getenv("CHANNEL_LINK", "").strip()      # مثل: https://t.me/YourChannel
+async def fetch_users():
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("SELECT user_id, username, full_name FROM users ORDER BY user_id DESC")
+        return [dict(r) for r in rows]
+    finally:
+        await conn.close()
+
+async def send_excel_to_admin(bot, rows: list[dict], filename: str = "report.xlsx"):
+    df = pd.DataFrame(rows)
+
+    buffer = io.BytesIO()
+    with pd.ExcelWriter(buffer, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="data")
+
+    buffer.seek(0)
+    file = BufferedInputFile(buffer.read(), filename=filename)
+
+    await bot.send_document(ADMIN_ID, file, caption="📊 گزارش اکسل آماده شد.")
+
+BOT_TOKEN = os.getenv("8201977751:AAFz0X7KxcpBm2XztB5D8RN8e7BUWjSMH04", "").strip()
+ADMIN_ID = int(os.getenv("5303374050", "0").strip() or "0")
+
+CHANNEL_ID = os.getenv("-1003674522523", "").strip()          # مثل: -1001234567890
+CHANNEL_LINK = os.getenv("https://t.me/SEYEDGPT", "").strip()      # مثل: https://t.me/YourChannel
 if not CHANNEL_LINK:
     CHANNEL_LINK = "https://t.me/SEYEDGPT"  # لینک کانال شما
 
@@ -578,6 +609,16 @@ async def cmd_start(msg: Message, state: FSMContext):
         "از منوی پایین انتخاب کن 👇",
         reply_markup=main_menu_kb()
     )
+
+@dp.message(Command("excel"))
+async def cmd_excel(message):
+    if message.from_user.id != ADMIN_ID:
+        return await message.answer("⛔ فقط ادمین اجازه دارد.")
+
+    rows = await fetch_users()
+    await send_excel_to_admin(message.bot, rows, filename="users.xlsx")
+    await message.answer("✅ فایل اکسل ارسال شد.")
+
 
 @dp.callback_query(F.data == "check_join")
 async def check_join(cb: CallbackQuery):
