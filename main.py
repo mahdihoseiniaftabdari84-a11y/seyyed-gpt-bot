@@ -44,7 +44,7 @@ DEFAULT_CHANNEL_LINK = "https://t.me/SEYEDGPT"
 
 # ✅ (اضافه شد) پیش‌فرض شماره کارت و نام کارت
 DEFAULT_CARD_NUMBER = "5859 8312 4336 2216"
-DEFAULT_CARD_NAME = "SEYED GPT"
+DEFAULT_CARD_NAME = "سید مهدی حسینی "
 
 # ✅ تنظیم صحیح از ENV (اولویت با ENV)
 ADMIN_ID = int((os.getenv("ADMIN_ID", DEFAULT_ADMIN_ID) or "0").strip() or "0")
@@ -1465,3 +1465,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
