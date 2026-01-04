@@ -37,14 +37,14 @@ load_dotenv()
 
 # ✅ مقادیر پیش‌فرضی که دادی (اگر ENV ست نباشه از اینا استفاده می‌شه)
 DEFAULT_ADMIN_ID = "5303374050"
-DEFAULT_BOT_TOKEN = "PUT_YOUR_BOT_TOKEN_HERE"  # ⚠️ توکن واقعی رو داخل ENV بذار
+DEFAULT_BOT_TOKEN = "8201977751:AAFz0X7KxcpBm2XztB5D8RN8e7BUWjSMH04"
 DEFAULT_CHANNEL_ID = "-1003674522523"
 DEFAULT_DATABASE_URL = "postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@switchyard.proxy.rlwy.net:23439/railway"
 DEFAULT_CHANNEL_LINK = "https://t.me/SEYEDGPT"
 
-# ✅ (اضافه شد) پیش‌فرض شماره کارت و نام کارت
+# ✅ ✅ اضافه شد: پیش‌فرض شماره کارت (اگه ENV ست نباشه)
 DEFAULT_CARD_NUMBER = "5859 8312 4336 2216"
-DEFAULT_CARD_NAME = "SEYED GPT"
+DEFAULT_CARD_NAME = "سید مهدی حسینی "
 
 # ✅ تنظیم صحیح از ENV (اولویت با ENV)
 ADMIN_ID = int((os.getenv("ADMIN_ID", DEFAULT_ADMIN_ID) or "0").strip() or "0")
@@ -57,14 +57,17 @@ CHANNEL_LINK = (os.getenv("CHANNEL_LINK", DEFAULT_CHANNEL_LINK) or "").strip()  
 if not CHANNEL_LINK:
     CHANNEL_LINK = DEFAULT_CHANNEL_LINK  # لینک کانال شما
 
-# ✅ (تغییر شد) کارت‌به‌کارت: اگر ENV خالی بود، از پیش‌فرض پر شود
-CARD_NUMBER = (os.getenv("CARD_NUMBER", DEFAULT_CARD_NUMBER) or "").strip()
-CARD_NAME = (os.getenv("CARD_NAME", DEFAULT_CARD_NAME) or "SEYED GPT").strip()
+# ✅ ✅ تغییر مهم: اگر env خالی بود، از شماره کارت ثابت استفاده می‌کنه
+CARD_NUMBER = (os.getenv("CARD_NUMBER", DEFAULT_CARD_NUMBER) or DEFAULT_CARD_NUMBER).strip()
+CARD_NAME = (os.getenv("CARD_NAME", DEFAULT_CARD_NAME) or DEFAULT_CARD_NAME).strip()
 
 # مسیرها
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "db.sqlite3")
 EXCEL_PATH = os.path.join(BASE_DIR, "data.xlsx")
+
+# ✅ فایل fallback که وقتی اکسل قفل باشه ساخته می‌شه
+EXCEL_FALLBACK_PATH = EXCEL_PATH.replace(".xlsx", "_NEW.xlsx")
 
 # قیمت پلن
 PLAN_TITLE = "ChatGPT Plus — 1 Month (Single User)"
@@ -74,6 +77,11 @@ TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
 
 async def fetch_users():
+    # ⚠️ این تابع قبلاً برای Postgres بود و باعث خطای relation "users" می‌شد
+    # چون توی این پروژه، دیتا اصلی داخل SQLite ذخیره می‌شه.
+    # برای اینکه ساختار کلی بهم نخوره، این تابع رو نگه داشتیم
+    # ولی عملاً تو گزارش اکسل ازش استفاده نمی‌کنیم.
+    # اگر خواستی، می‌تونیم کامل حذفش کنیم.
     conn = await asyncpg.connect(DATABASE_URL)
     try:
         rows = await conn.fetch("SELECT user_id, username, full_name FROM users ORDER BY user_id DESC")
@@ -130,6 +138,13 @@ def clamp_text(s: str, max_len: int = 800) -> str:
     if len(s) > max_len:
         s = s[:max_len]
     return s
+
+def format_card_number(card: str) -> str:
+    # ✅ کارت رو مرتب 4تایی نمایش می‌ده (برای زیبایی)
+    digits = re.sub(r"\D", "", card or "")
+    if not digits:
+        return ""
+    return " ".join(digits[i:i+4] for i in range(0, len(digits), 4))
 
 async def safe_answer(message: Message, text: str, **kwargs):
     """
@@ -428,6 +443,68 @@ def excel_append_feedback(row: list):
         print("EXCEL WRITE ERROR:", e)
 
 
+# ✅✅✅ اضافه شد: ادغام فایل data_NEW.xlsx داخل data.xlsx قبل از ارسال گزارش
+def merge_excel_fallback_into_main():
+    try:
+        if not os.path.exists(EXCEL_FALLBACK_PATH):
+            return
+
+        ensure_excel()
+        wb_main = load_workbook(EXCEL_PATH)
+        wb_fb = load_workbook(EXCEL_FALLBACK_PATH)
+
+        # Orders
+        if "Orders" in wb_main.sheetnames and "Orders" in wb_fb.sheetnames:
+            ws_main = wb_main["Orders"]
+            ws_fb = wb_fb["Orders"]
+
+            main_ids = set()
+            for r in range(2, ws_main.max_row + 1):
+                oid = ws_main.cell(row=r, column=1).value
+                if oid is not None:
+                    main_ids.add(str(oid))
+
+            for r in range(2, ws_fb.max_row + 1):
+                row_vals = [ws_fb.cell(row=r, column=c).value for c in range(1, ws_fb.max_column + 1)]
+                oid = row_vals[0]
+                if oid is None:
+                    continue
+                if str(oid) not in main_ids:
+                    ws_main.append(row_vals)
+                    main_ids.add(str(oid))
+
+        # Feedback
+        if "Feedback" in wb_main.sheetnames and "Feedback" in wb_fb.sheetnames:
+            ws_main_f = wb_main["Feedback"]
+            ws_fb_f = wb_fb["Feedback"]
+
+            # ساده: همه feedback ها رو append می‌کنیم (تکرار مهم نیست، ولی می‌تونی بعداً de-dup کنیم)
+            for r in range(2, ws_fb_f.max_row + 1):
+                row_vals = [ws_fb_f.cell(row=r, column=c).value for c in range(1, ws_fb_f.max_column + 1)]
+                if any(v is not None and str(v).strip() != "" for v in row_vals):
+                    ws_main_f.append(row_vals)
+
+        wb_main.save(EXCEL_PATH)
+        wb_main.close()
+        wb_fb.close()
+    except Exception as e:
+        print("MERGE EXCEL FALLBACK ERROR:", e)
+
+# ✅✅✅ اضافه شد: ارسال فایل اکسل سفارش‌ها (نه دیتای Postgres)
+async def send_orders_excel_file_to_admin(bot_obj: Bot):
+    ensure_excel()
+    merge_excel_fallback_into_main()
+
+    if not os.path.exists(EXCEL_PATH):
+        ensure_excel()
+
+    with open(EXCEL_PATH, "rb") as f:
+        file_bytes = f.read()
+
+    file = BufferedInputFile(file_bytes, filename="orders.xlsx")
+    await bot_obj.send_document(ADMIN_ID, file, caption="📊 گزارش اکسل سفارش‌ها آماده شد.")
+
+
 # -------------------- Channel membership check --------------------
 async def is_member(bot: Bot, user_id: int) -> bool:
     if not CHANNEL_ID:
@@ -542,7 +619,7 @@ class AdminFlow(StatesGroup):
 
 
 # -------------------- Bot init --------------------
-if not BOT_TOKEN or BOT_TOKEN == "PUT_YOUR_BOT_TOKEN_HERE":
+if not BOT_TOKEN:
     raise RuntimeError("BOT_TOKEN is missing. Put it in .env or ENV variables.")
 
 bot = Bot(
@@ -639,13 +716,13 @@ async def cmd_start(msg: Message, state: FSMContext):
     )
 
 @dp.message(Command("excel"))
-async def cmd_excel(message: Message):
+async def cmd_excel(message):
     if message.from_user.id != ADMIN_ID:
         return await message.answer("⛔ فقط ادمین اجازه دارد.")
 
-    await send_orders_excel_report_to_admin(message.bot)
-    await message.answer("✅ گزارش سفارش‌ها ارسال شد.")
-
+    # ✅✅✅ اینجا به جای Postgres، اکسل سفارش‌ها فرستاده می‌شه
+    await send_orders_excel_file_to_admin(message.bot)
+    await message.answer("✅ فایل اکسل سفارش‌ها ارسال شد.")
 
 
 @dp.callback_query(F.data == "check_join")
@@ -674,9 +751,9 @@ async def excel_button(msg: Message):
     if not is_admin(msg.from_user.id):
         return await safe_answer(msg, "⛔ فقط ادمین اجازه دارد.", reply_markup=main_menu_kb_for(msg.from_user.id))
 
-    await send_orders_excel_report_to_admin(msg.bot)
-    await safe_answer(msg, "✅ گزارش سفارش‌ها ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
-
+    # ✅✅✅ اینجا هم به جای fetch_users (که خطا می‌داد)، اکسل سفارش‌ها ارسال می‌شه
+    await send_orders_excel_file_to_admin(msg.bot)
+    await safe_answer(msg, "✅ فایل اکسل سفارش‌ها ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
 
 @dp.message(F.text == "💎 پلن و قیمت")
 async def plans(msg: Message):
@@ -1077,7 +1154,7 @@ async def payment_choice(msg: Message, state: FSMContext):
             f"🧾 سفارش: *{order_id}*\n"
             f"💰 مبلغ قابل پرداخت: *{final_amount:,} تومان*\n\n"
             "✅ لطفاً مبلغ را به شماره کارت زیر واریز کن و سپس *عکس رسید* را ارسال کن:\n\n"
-            f"شماره کارت:\n`{CARD_NUMBER}`\n"
+            f"شماره کارت:\n`{format_card_number(CARD_NUMBER)}`\n"
             f"به نام: *{CARD_NAME}*",
             reply_markup=cancel_only_kb()
         )
@@ -1454,4 +1531,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
