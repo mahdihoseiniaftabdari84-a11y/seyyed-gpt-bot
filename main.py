@@ -43,13 +43,13 @@ DEFAULT_DATABASE_URL = "postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@s
 DEFAULT_CHANNEL_LINK = "https://t.me/SEYEDGPT"
 
 # ✅ تنظیم صحیح از ENV (اولویت با ENV)
-ADMIN_ID = int((os.getenv("ADMIN_ID", DEFAULT_ADMIN_ID) or "0").strip() or "0")
-DATABASE_URL = (os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL) or "").strip()
+ADMIN_ID = int((os.getenv("5303374050", DEFAULT_ADMIN_ID) or "0").strip() or "0")
+DATABASE_URL = (os.getenv("postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@switchyard.proxy.rlwy.net:23439/railway", DEFAULT_DATABASE_URL) or "").strip()
 
-BOT_TOKEN = (os.getenv("BOT_TOKEN", DEFAULT_BOT_TOKEN) or "").strip()
+BOT_TOKEN = (os.getenv("8201977751:AAFz0X7KxcpBm2XztB5D8RN8e7BUWjSMH04", DEFAULT_BOT_TOKEN) or "").strip()
 
-CHANNEL_ID = (os.getenv("CHANNEL_ID", DEFAULT_CHANNEL_ID) or "").strip()          # مثل: -1001234567890
-CHANNEL_LINK = (os.getenv("CHANNEL_LINK", DEFAULT_CHANNEL_LINK) or "").strip()   # مثل: https://t.me/YourChannel
+CHANNEL_ID = (os.getenv("-1003674522523", DEFAULT_CHANNEL_ID) or "").strip()          # مثل: -1001234567890
+CHANNEL_LINK = (os.getenv("https://t.me/SEYEDGPT", DEFAULT_CHANNEL_LINK) or "").strip()   # مثل: https://t.me/YourChannel
 if not CHANNEL_LINK:
     CHANNEL_LINK = DEFAULT_CHANNEL_LINK  # لینک کانال شما
 
@@ -1425,3 +1425,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
