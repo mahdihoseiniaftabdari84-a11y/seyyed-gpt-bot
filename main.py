@@ -37,10 +37,14 @@ load_dotenv()
 
 # ✅ مقادیر پیش‌فرضی که دادی (اگر ENV ست نباشه از اینا استفاده می‌شه)
 DEFAULT_ADMIN_ID = "5303374050"
-DEFAULT_BOT_TOKEN = "8201977751:AAFz0X7KxcpBm2XztB5D8RN8e7BUWjSMH04"
+DEFAULT_BOT_TOKEN = "PUT_YOUR_BOT_TOKEN_HERE"  # ⚠️ توکن واقعی رو داخل ENV بذار
 DEFAULT_CHANNEL_ID = "-1003674522523"
 DEFAULT_DATABASE_URL = "postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@switchyard.proxy.rlwy.net:23439/railway"
 DEFAULT_CHANNEL_LINK = "https://t.me/SEYEDGPT"
+
+# ✅ (اضافه شد) پیش‌فرض شماره کارت و نام کارت
+DEFAULT_CARD_NUMBER = "5859 8312 4336 2216"
+DEFAULT_CARD_NAME = "SEYED GPT"
 
 # ✅ تنظیم صحیح از ENV (اولویت با ENV)
 ADMIN_ID = int((os.getenv("ADMIN_ID", DEFAULT_ADMIN_ID) or "0").strip() or "0")
@@ -53,8 +57,9 @@ CHANNEL_LINK = (os.getenv("CHANNEL_LINK", DEFAULT_CHANNEL_LINK) or "").strip()  
 if not CHANNEL_LINK:
     CHANNEL_LINK = DEFAULT_CHANNEL_LINK  # لینک کانال شما
 
-CARD_NUMBER = os.getenv("CARD_NUMBER", "").strip()
-CARD_NAME = os.getenv("CARD_NAME", "SEYED GPT").strip()
+# ✅ (تغییر شد) کارت‌به‌کارت: اگر ENV خالی بود، از پیش‌فرض پر شود
+CARD_NUMBER = (os.getenv("CARD_NUMBER", DEFAULT_CARD_NUMBER) or "").strip()
+CARD_NAME = (os.getenv("CARD_NAME", DEFAULT_CARD_NAME) or "SEYED GPT").strip()
 
 # مسیرها
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -537,7 +542,7 @@ class AdminFlow(StatesGroup):
 
 
 # -------------------- Bot init --------------------
-if not BOT_TOKEN:
+if not BOT_TOKEN or BOT_TOKEN == "PUT_YOUR_BOT_TOKEN_HERE":
     raise RuntimeError("BOT_TOKEN is missing. Put it in .env or ENV variables.")
 
 bot = Bot(
@@ -672,9 +677,17 @@ async def excel_button(msg: Message):
     if not DATABASE_URL:
         return await safe_answer(msg, "❌ DATABASE_URL تنظیم نشده.", reply_markup=main_menu_kb_for(msg.from_user.id))
 
-    rows = await fetch_users()
-    await send_excel_to_admin(msg.bot, rows, filename="users.xlsx")
-    await safe_answer(msg, "✅ فایل اکسل ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
+    try:
+        rows = await fetch_users()
+        await send_excel_to_admin(msg.bot, rows, filename="users.xlsx")
+        await safe_answer(msg, "✅ فایل اکسل ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
+    except Exception as e:
+        await safe_answer(
+            msg,
+            f"❌ خطا در گزارش اکسل:\n{e}",
+            parse_mode=None,
+            reply_markup=main_menu_kb_for(msg.from_user.id)
+        )
 
 @dp.message(F.text == "💎 پلن و قیمت")
 async def plans(msg: Message):
