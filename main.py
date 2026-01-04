@@ -74,12 +74,20 @@ TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
 
 async def fetch_users():
-    conn = await asyncpg.connect(DATABASE_URL)
-    try:
-        rows = await conn.fetch("SELECT user_id, username, full_name FROM users ORDER BY user_id DESC")
-        return [dict(r) for r in rows]
-    finally:
-        await conn.close()
+    async with aiosqlite.connect(DB_PATH) as db:
+        cur = await db.execute(
+            "SELECT user_id, username, full_name, created_at FROM users ORDER BY user_id DESC"
+        )
+        rows = await cur.fetchall()
+        return [
+            {
+                "user_id": r[0],
+                "username": r[1],
+                "full_name": r[2],
+                "created_at": r[3],
+            }
+            for r in rows
+        ]
 
 async def send_excel_to_admin(bot, rows: list[dict], filename: str = "report.xlsx"):
     df = pd.DataFrame(rows)
@@ -1465,4 +1473,5 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
 
