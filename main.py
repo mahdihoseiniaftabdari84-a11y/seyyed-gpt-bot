@@ -44,7 +44,7 @@ DEFAULT_CHANNEL_LINK = "https://t.me/SEYEDGPT"
 
 # ✅ (اضافه شد) پیش‌فرض شماره کارت و نام کارت
 DEFAULT_CARD_NUMBER = "5859 8312 4336 2216"
-DEFAULT_CARD_NAME = "سید مهدی حسینی "
+DEFAULT_CARD_NAME = "SEYED GPT"
 
 # ✅ تنظیم صحیح از ENV (اولویت با ENV)
 ADMIN_ID = int((os.getenv("ADMIN_ID", DEFAULT_ADMIN_ID) or "0").strip() or "0")
@@ -74,20 +74,12 @@ TEHRAN_TZ = timezone(timedelta(hours=3, minutes=30))
 
 
 async def fetch_users():
-    async with aiosqlite.connect(DB_PATH) as db:
-        cur = await db.execute(
-            "SELECT user_id, username, full_name, created_at FROM users ORDER BY user_id DESC"
-        )
-        rows = await cur.fetchall()
-        return [
-            {
-                "user_id": r[0],
-                "username": r[1],
-                "full_name": r[2],
-                "created_at": r[3],
-            }
-            for r in rows
-        ]
+    conn = await asyncpg.connect(DATABASE_URL)
+    try:
+        rows = await conn.fetch("SELECT user_id, username, full_name FROM users ORDER BY user_id DESC")
+        return [dict(r) for r in rows]
+    finally:
+        await conn.close()
 
 async def send_excel_to_admin(bot, rows: list[dict], filename: str = "report.xlsx"):
     df = pd.DataFrame(rows)
@@ -1473,5 +1465,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
-
