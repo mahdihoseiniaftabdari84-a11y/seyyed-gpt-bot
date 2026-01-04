@@ -43,13 +43,13 @@ DEFAULT_DATABASE_URL = "postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@s
 DEFAULT_CHANNEL_LINK = "https://t.me/SEYEDGPT"
 
 # ✅ تنظیم صحیح از ENV (اولویت با ENV)
-ADMIN_ID = int((os.getenv("5303374050", DEFAULT_ADMIN_ID) or "0").strip() or "0")
-DATABASE_URL = (os.getenv("postgresql://postgres:gbZOKrXWWBLWuhdyspCICBVOujEfpVwu@switchyard.proxy.rlwy.net:23439/railway", DEFAULT_DATABASE_URL) or "").strip()
+ADMIN_ID = int((os.getenv("ADMIN_ID", DEFAULT_ADMIN_ID) or "0").strip() or "0")
+DATABASE_URL = (os.getenv("DATABASE_URL", DEFAULT_DATABASE_URL) or "").strip()
 
-BOT_TOKEN = (os.getenv("8201977751:AAFz0X7KxcpBm2XztB5D8RN8e7BUWjSMH04", DEFAULT_BOT_TOKEN) or "").strip()
+BOT_TOKEN = (os.getenv("BOT_TOKEN", DEFAULT_BOT_TOKEN) or "").strip()
 
-CHANNEL_ID = (os.getenv("-1003674522523", DEFAULT_CHANNEL_ID) or "").strip()          # مثل: -1001234567890
-CHANNEL_LINK = (os.getenv("https://t.me/SEYEDGPT", DEFAULT_CHANNEL_LINK) or "").strip()   # مثل: https://t.me/YourChannel
+CHANNEL_ID = (os.getenv("CHANNEL_ID", DEFAULT_CHANNEL_ID) or "").strip()          # مثل: -1001234567890
+CHANNEL_LINK = (os.getenv("CHANNEL_LINK", DEFAULT_CHANNEL_LINK) or "").strip()   # مثل: https://t.me/YourChannel
 if not CHANNEL_LINK:
     CHANNEL_LINK = DEFAULT_CHANNEL_LINK  # لینک کانال شما
 
@@ -445,6 +445,21 @@ def main_menu_kb() -> ReplyKeyboardMarkup:
         resize_keyboard=True
     )
 
+# ✅ منوی مخصوص هر کاربر (فقط برای ادمین: دکمه گزارش اکسل نمایش داده می‌شود)
+def main_menu_kb_for(user_id: int) -> ReplyKeyboardMarkup:
+    keyboard = [
+        [KeyboardButton(text="🛒 خرید اشتراک"), KeyboardButton(text="💎 پلن و قیمت")],
+        [KeyboardButton(text="🎟 کد تخفیف"), KeyboardButton(text="💬 نظر / پیشنهاد")],
+        [KeyboardButton(text="🆘 پشتیبانی (چت)"), KeyboardButton(text="❓ سوالات متداول")]
+    ]
+    if is_admin(user_id):
+        keyboard.insert(0, [KeyboardButton(text="📊 گزارش اکسل")])
+
+    return ReplyKeyboardMarkup(
+        keyboard=keyboard,
+        resize_keyboard=True
+    )
+
 def cancel_only_kb() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="❌ لغو عملیات")]],
@@ -615,7 +630,7 @@ async def cmd_start(msg: Message, state: FSMContext):
         msg,
         "🌟 به *SEYED GPT* خوش اومدی!\n\n"
         "از منوی پایین انتخاب کن 👇",
-        reply_markup=main_menu_kb()
+        reply_markup=main_menu_kb_for(msg.from_user.id)
     )
 
 @dp.message(Command("excel"))
@@ -636,7 +651,7 @@ async def check_join(cb: CallbackQuery):
             "✅ ثبت شد.\n"
             "⚠️ برای چک واقعی عضویت باید CHANNEL_ID را در .env تنظیم کنی.\n"
             "فعلاً ادامه بده.",
-            reply_markup=main_menu_kb()
+            reply_markup=main_menu_kb_for(cb.from_user.id)
         )
         await cb.answer()
         return
@@ -644,11 +659,23 @@ async def check_join(cb: CallbackQuery):
     if not await require_access(cb, cb.from_user.id):
         return
 
-    await safe_answer(cb.message, "✅ عضویت تایید شد. حالا می‌تونی از ربات استفاده کنی.", reply_markup=main_menu_kb())
+    await safe_answer(cb.message, "✅ عضویت تایید شد. حالا می‌تونی از ربات استفاده کنی.", reply_markup=main_menu_kb_for(cb.from_user.id))
     await cb.answer()
 
 
 # -------------------- Menu actions --------------------
+@dp.message(F.text == "📊 گزارش اکسل")
+async def excel_button(msg: Message):
+    if not is_admin(msg.from_user.id):
+        return await safe_answer(msg, "⛔ فقط ادمین اجازه دارد.", reply_markup=main_menu_kb_for(msg.from_user.id))
+
+    if not DATABASE_URL:
+        return await safe_answer(msg, "❌ DATABASE_URL تنظیم نشده.", reply_markup=main_menu_kb_for(msg.from_user.id))
+
+    rows = await fetch_users()
+    await send_excel_to_admin(msg.bot, rows, filename="users.xlsx")
+    await safe_answer(msg, "✅ فایل اکسل ارسال شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
+
 @dp.message(F.text == "💎 پلن و قیمت")
 async def plans(msg: Message):
     if not await require_access(msg, msg.from_user.id):
@@ -659,7 +686,7 @@ async def plans(msg: Message):
         f"• قیمت: *{PLAN_PRICE:,} تومان*\n\n"
         "برای خرید روی «🛒 خرید اشتراک» بزن."
     )
-    await safe_answer(msg, text, reply_markup=main_menu_kb())
+    await safe_answer(msg, text, reply_markup=main_menu_kb_for(msg.from_user.id))
 
 @dp.message(F.text == "❓ سوالات متداول")
 async def faq(msg: Message):
@@ -674,7 +701,7 @@ async def faq(msg: Message):
         "• اگر مشکلی پیش بیاد چی؟\n"
         "  پشتیبانی داریم ✅"
     )
-    await safe_answer(msg, text, reply_markup=main_menu_kb())
+    await safe_answer(msg, text, reply_markup=main_menu_kb_for(msg.from_user.id))
 
 @dp.message(F.text == "🎟 کد تخفیف")
 async def discount_info(msg: Message):
@@ -684,7 +711,7 @@ async def discount_info(msg: Message):
         msg,
         "🎟 کد تخفیف را *در مرحله خرید* وارد می‌کنی و همانجا از مبلغ کم می‌شود.\n"
         "برای خرید از «🛒 خرید اشتراک» استفاده کن ✅",
-        reply_markup=main_menu_kb()
+        reply_markup=main_menu_kb_for(msg.from_user.id)
     )
 
 @dp.message(F.text == "💬 نظر / پیشنهاد")
@@ -704,7 +731,7 @@ async def feedback_save(msg: Message, state: FSMContext):
     text = clamp_text(msg.text or "", 1200)
     if text == "❌ لغو عملیات":
         await state.clear()
-        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     async with aiosqlite.connect(DB_PATH) as db:
@@ -722,7 +749,7 @@ async def feedback_save(msg: Message, state: FSMContext):
         to_jalali_str(datetime.now(tz=TEHRAN_TZ))
     ])
 
-    await safe_answer(msg, "✅ پیام شما ثبت شد و بررسی می‌شه.", reply_markup=main_menu_kb())
+    await safe_answer(msg, "✅ پیام شما ثبت شد و بررسی می‌شه.", reply_markup=main_menu_kb_for(msg.from_user.id))
     await state.clear()
 
 @dp.message(F.text == "🆘 پشتیبانی (چت)")
@@ -747,7 +774,7 @@ async def support_user_message(msg: Message, state: FSMContext):
     if (msg.text or "").strip() == "❌ لغو عملیات":
         await close_support(msg.from_user.id)
         await state.clear()
-        await safe_answer(msg, "✅ چت پشتیبانی بسته شد.", reply_markup=main_menu_kb())
+        await safe_answer(msg, "✅ چت پشتیبانی بسته شد.", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     if not ADMIN_ID:
@@ -766,7 +793,7 @@ async def support_user_message(msg: Message, state: FSMContext):
         sent = await msg.copy_to(ADMIN_ID)
         await link_admin_message(sent.message_id, msg.from_user.id)
 
-        await safe_answer(msg, "✅ پیامت ارسال شد. منتظر پاسخ ادمین باش.", reply_markup=main_menu_kb())
+        await safe_answer(msg, "✅ پیامت ارسال شد. منتظر پاسخ ادمین باش.", reply_markup=main_menu_kb_for(msg.from_user.id))
         await state.clear()
     except Exception as e:
         await safe_answer(msg, f"❌ ارسال به ادمین ناموفق بود: {e}", parse_mode=None)
@@ -866,7 +893,7 @@ async def step_email(msg: Message, state: FSMContext):
     t = clamp_text(msg.text or "", 200)
     if t == "❌ لغو عملیات":
         await state.clear()
-        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     if not EMAIL_RE.match(t):
@@ -895,7 +922,7 @@ async def step_phone(msg: Message, state: FSMContext):
             await update_order(order_id, status="CANCELLED")
             excel_update_order(order_id, status="CANCELLED")
         await state.clear()
-        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     if not PHONE_RE.match(t):
@@ -951,14 +978,14 @@ async def step_discount(msg: Message, state: FSMContext):
             await update_order(order_id, status="CANCELLED")
             excel_update_order(order_id, status="CANCELLED")
         await state.clear()
-        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     data = await state.get_data()
     order_id = data.get("order_id")
     if not order_id:
         await state.clear()
-        await safe_answer(msg, "مشکلی پیش اومد. دوباره از خرید شروع کن.", reply_markup=main_menu_kb())
+        await safe_answer(msg, "مشکلی پیش اومد. دوباره از خرید شروع کن.", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     if t == "⏭ بدون کد تخفیف":
@@ -997,14 +1024,14 @@ async def payment_choice(msg: Message, state: FSMContext):
     order_id = data.get("order_id")
     if not order_id:
         await state.clear()
-        await safe_answer(msg, "مشکلی پیش اومد. دوباره از خرید شروع کن.", reply_markup=main_menu_kb())
+        await safe_answer(msg, "مشکلی پیش اومد. دوباره از خرید شروع کن.", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     if t == "❌ لغو عملیات":
         await update_order(order_id, status="CANCELLED")
         excel_update_order(order_id, status="CANCELLED")
         await state.clear()
-        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     if t == "🟦 پرداخت آنلاین (به‌زودی)":
@@ -1016,7 +1043,7 @@ async def payment_choice(msg: Message, state: FSMContext):
             "🟦 *پرداخت آنلاین*\n\n"
             "این روش فعلاً *به‌زودی* فعال می‌شود.\n"
             "اگر قصد پرداخت دارید، گزینه «💳 کارت‌به‌کارت» را انتخاب کنید.",
-            reply_markup=main_menu_kb()
+            reply_markup=main_menu_kb_for(msg.from_user.id)
         )
         if ADMIN_ID:
             try:
@@ -1062,14 +1089,14 @@ async def receipt_photo(msg: Message, state: FSMContext):
     order_id = data.get("order_id")
     if not order_id:
         await state.clear()
-        await safe_answer(msg, "مشکلی پیش اومد. دوباره از خرید شروع کن.", reply_markup=main_menu_kb())
+        await safe_answer(msg, "مشکلی پیش اومد. دوباره از خرید شروع کن.", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
 
     file_id = msg.photo[-1].file_id
     await update_order(order_id, receipt_file_id=file_id, status="WAITING_ADMIN")
     excel_update_order(order_id, status="WAITING_ADMIN")
 
-    await safe_answer(msg, "✅ رسید دریافت شد.\n⏳ *در انتظار تایید ادمین* ", reply_markup=main_menu_kb())
+    await safe_answer(msg, "✅ رسید دریافت شد.\n⏳ *در انتظار تایید ادمین* ", reply_markup=main_menu_kb_for(msg.from_user.id))
     await state.clear()
 
     if ADMIN_ID:
@@ -1115,7 +1142,7 @@ async def receipt_text(msg: Message, state: FSMContext):
             await update_order(order_id, status="CANCELLED")
             excel_update_order(order_id, status="CANCELLED")
         await state.clear()
-        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+        await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
         return
     await safe_answer(msg, "📸 لطفاً *عکس رسید* را ارسال کن یا «❌ لغو عملیات» بزن.", reply_markup=cancel_only_kb())
 
@@ -1406,7 +1433,7 @@ async def global_cancel(msg: Message, state: FSMContext):
         await update_order(order_id, status="CANCELLED")
         excel_update_order(order_id, status="CANCELLED")
     await state.clear()
-    await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb())
+    await safe_answer(msg, "لغو شد ✅", reply_markup=main_menu_kb_for(msg.from_user.id))
 
 
 # -------------------- Fallback --------------------
@@ -1414,7 +1441,7 @@ async def global_cancel(msg: Message, state: FSMContext):
 async def fallback(msg: Message):
     if not await require_access(msg, msg.from_user.id):
         return
-    await safe_answer(msg, "از منوی پایین انتخاب کن 👇", reply_markup=main_menu_kb())
+    await safe_answer(msg, "از منوی پایین انتخاب کن 👇", reply_markup=main_menu_kb_for(msg.from_user.id))
 
 
 # -------------------- Main --------------------
@@ -1425,4 +1452,3 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
-
